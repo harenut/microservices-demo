@@ -21,6 +21,9 @@ import (
 	"os"
 	"strconv"
 	"time"
+	"net/http"
+	"math/rand"
+	"io/ioutil"
 
 	"cloud.google.com/go/profiler"
 	"github.com/google/uuid"
@@ -33,10 +36,12 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/stats"
 	"google.golang.org/grpc/status"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	pb "github.com/signalfx/microservices-demo/src/checkoutservice/genproto"
 	money "github.com/signalfx/microservices-demo/src/checkoutservice/money"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+
 )
 
 const (
@@ -168,9 +173,37 @@ func (cs *checkoutService) Watch(req *healthpb.HealthCheckRequest, ws healthpb.H
 	return status.Errorf(codes.Unimplemented, "health check via Watch not implemented")
 }
 
+
 func (cs *checkoutService) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (*pb.PlaceOrderResponse, error) {
 	log := logger.WithFields(getTraceLogFields(ctx))
 	log.Infof("[PlaceOrder] user_id=%q user_currency=%q", req.UserId, req.UserCurrency)
+
+        s1 := rand.NewSource(time.Now().UnixNano())
+        r2 := rand.New(s1)
+	if r2.Intn(10) > 5 {
+
+		client := http.Client{
+			Transport: otelhttp.NewTransport(http.DefaultTransport),
+		}
+	
+		req,err := http.NewRequestWithContext(ctx, "GET", "https://gh993gbo1m.execute-api.us-east-1.amazonaws.com/default/ACME-lambda-backend", nil)
+        	if err!= nil {
+                	log.Fatalln(err)
+        	} 
+		res, err1 := client.Do(req)
+        	if err1 != nil {
+                	log.Fatalln(err1)
+        	}
+		if res.StatusCode == http.StatusOK {
+    			bodyBytes, err := ioutil.ReadAll(res.Body)
+    			if err != nil {
+        			log.Fatal(err)
+    			}
+    			bodyString := string(bodyBytes)
+    			log.Infof(bodyString)
+		}
+		res.Body.Close()
+       }
 
 	orderID, err := uuid.NewUUID()
 	if err != nil {

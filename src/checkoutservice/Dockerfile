@@ -1,4 +1,4 @@
-FROM golang:1.14-alpine as builder
+FROM golang:1.16-alpine as builder
 RUN apk add --no-cache ca-certificates git
 
 ENV PROJECT github.com/signalfx/microservices-demo/src/checkoutservice
@@ -6,6 +6,8 @@ WORKDIR /go/src/$PROJECT
 
 COPY . .
 ENV GO111MODULE on
+RUN go get go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp
+RUN go get google.golang.org/grpc/balancer/grpclb@v1.26.0
 RUN go build -o /go/bin/checkoutservice .
 
 FROM alpine as release
